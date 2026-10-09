@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">SparkFusionAD</string>
+    <string name="sDefault">sDefault</string>
+    <string name="app_version">1.0.1</string>
+    <string name="aboutus">关于我们</string>
+    <string name="qqgroup">官方QQ群</string>
+    <string name="privacy">隐私协议</string>
+    <string name="welcome_use">欢迎使用SparkFusionAD</string>
+    <string name="users_notes">用户须知</string>
+    <string name="privacy_policy_title">隐私协议</string>
+    <string name="privacy_policy">https://docs.qq.com/doc/p/97adeb9a87e92666d517413226d5625a838403c5</string>
+    <string name="agreement_content">SparkFusionAD是成都萌懂网络科技有限公司旗下(以下简称"SparkFusionAD“或”我们")开发、管理、运营的速算、闪算服务平台。我们将依据《用户协议》、《隐私政策》来帮助您了解我们在收集、使用、存储和共享您个人信息的情况以及您享有的相关权利。我们承诺会采取业界先进的安全措施保护您的信息安全，在您使用本应用的过程中，我们会以弹窗或页面文案的形式向您明确说明并申请定位、相机、相册、麦克风、通知等系统权限，这些权限并不会默认开启，我们仅在您使用到相应业务功能时，在您明确同意后开启。点击“同意"，即视为您已阅读并同意SparkFusionAD《用户协议》《隐私政策》及上述内容;如您拒绝同意，您仍然能够在无注册/登录状态下进行部分基础信息的浏览。您也可以在后续使用服务过程中单独进行授权。</string>
+
+</resources>
