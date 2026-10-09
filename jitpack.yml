@@ -1,0 +1,6 @@
+jdk:
+  - openjdk17
+before_install:
+  - git config --global --add safe.directory /build
+install:
+  - JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java)))) ./gradlew :library:publishToMavenLocal --stacktrace

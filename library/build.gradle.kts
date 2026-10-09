@@ -49,7 +49,7 @@ dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
 }
 group = "com.github.IgniteFusion"
-version = "1.0.0"
+version = "1.0.1"
 
 afterEvaluate {
     publishing {
@@ -58,7 +58,7 @@ afterEvaluate {
                 from(components["release"])
                 groupId = "com.ignitefusion.ad"
                 artifactId = "IgniteFusionAd"
-                version = "1.0.0"
+                version = "1.0.1"
             }
         }
     }
