@@ -2,15 +2,16 @@
 
 [![](https://jitpack.io/v/Spark-Fusion/SparkFusionAD.svg)](https://jitpack.io/#Spark-Fusion/SparkFusionAD)
 
-轻量级 Android 广告 SDK。**广告位 + 广告素材均通过部署的 SparkFusionAD 后端拉取**，不再依赖任何第三方 BaaS。
-ignitefusion.cn
-IgniteFusionAD
+轻量级 Android 广告 SDK。**广告位 + 广告素材均通过部署的 SparkFusionAD 后端拉取**，不再依赖任何第三方 BaaS。官网：[ignitefusion.cn](https://ignitefusion.cn)。
+
 ## 功能
 
 - ✅ 开屏广告（Splash）
 - ✅ Banner 广告
 - ✅ 插屏广告（Interstitial）
 - ✅ 激励视频广告（Rewarded Video，内置 ExoPlayer 播放器）
+- ✅ 自有广告点击：按素材打开链接或下载安装包，不会因为本机已安装就直接拉起应用
+- ✅ 开屏、Banner、插屏、激励视频均展示「广告」标识
 - ✅ 「广告位 enableSelfAd=false」时，回调接入方自行加载三方广告
 - ✅ **三方广告漏斗埋点**（load / show / click 三类事件上报，后端按广告位聚合）
 - ✅ **三方广告展示 / 点击日上限**（后台 `third_party_show_limit`、`third_party_click_limit`，`0` 表示不限）
@@ -54,18 +55,17 @@ SDK 内置生产后端地址（`IgniteFusionApiClient.PROD_BASE_URL`）。接入
 
 ### 2. 添加依赖
 
-#### 方式 A：源码依赖（推荐，当前仓库）
+#### 方式 A：源码依赖（当前仓库）
+
+本仓库的 `settings.gradle.kts` 已经 `include(":app")` 和 `include(":library")`。Demo 直接依赖 library 模块：
 
 ```kotlin
-// settings.gradle.kts
-include(":library")
-project(":library").projectDir = file("$rootDir/../sdk/android/library")
-
-// app/build.gradle.kts
 dependencies {
     implementation(project(":library"))
 }
 ```
+
+其他工程以源码方式引入时，把 `projectDir` 指到本仓库的 `library` 目录。
 
 #### 方式 B：JitPack 远程依赖（发布后）
 
@@ -81,9 +81,11 @@ dependencyResolutionManagement {
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.Spark-Fusion:SparkFusionAD:1.2.0")
+    implementation("com.github.Spark-Fusion:SparkFusionAD:<tag>")
 }
 ```
+
+JitPack 使用仓库根目录的 `jitpack.yml`：构建机用 JDK 17（编译目标仍是 Java 11），并执行 `:library:publishToMavenLocal`。版本号取 Git tag，不取 `library/build.gradle.kts` 里写死的 `version`。
 
 ### 3. 初始化 SDK
 
@@ -159,13 +161,13 @@ IgniteFusionAd.loadIFSplashAd(
                 container,
                 object : IgniteFusionAdShowListener {
                     override fun onAdShowSuccess() {}
-                    override fun onAdShowFailure(msg: String) {}
+                    override fun onAdShowFailure(error: Throwable) {}
                     override fun onAdClick() {}
                     override fun onAdClose() { /* jump to main */ }
                 },
             )
         }
-        override fun onAdLoadFailure(msg: String) {
+        override fun onAdLoadFailure(error: Throwable) {
             // 到达日上限 / 上报失败以外的其它原因都会走这里
         }
     },
@@ -242,7 +244,7 @@ IgniteFusionAd.loadIFVideoAd(
                 activity = this@MainActivity,
                 listener = object : IgniteFusionRewardAdShowListener {
                     override fun onAdShowSuccess() {}
-                    override fun onAdShowFailure(msg: String) {}
+                    override fun onAdShowFailure(error: Throwable) {}
                     override fun onAdClick() {}
                     override fun onAdClose() {}
                     override fun onReward() { /* 发奖 */ }
@@ -253,6 +255,34 @@ IgniteFusionAd.loadIFVideoAd(
     ),
 )
 ```
+
+---
+
+## 自有广告展示与点击
+
+下面只描述 `enableSelfAd=true` 时 SDK 自己渲染的广告。三方广告的展示和点击由接入方处理，并用 `reportThirdPartyEvent` 上报。
+
+### 点击跳转
+
+点击素材、按钮或开屏摇一摇，都走同一套 `url` / `isDownload` 判断。**不会**因为本机已经安装了 `applicationId` 就直接启动应用。
+
+| 素材 | 行为 |
+| --- | --- |
+| `isDownload=true`，且 `url` 非空 | 用系统 `DownloadManager` 下载 `url`，并提示「开始下载」。下载完成后拉起安装界面。若同时填了 `applicationId`，安装成功后再启动该应用 |
+| `isDownload=false`，且 `url` 为 `http://` 或 `https://` | `ACTION_VIEW` 打开链接（通常是浏览器） |
+| `url` 不是 http(s) | `url` 若是已安装包名则启动该包，否则仍按 `ACTION_VIEW` 打开 |
+| `url` 为空 | 只 Toast 提示，不跳转 |
+
+下载类广告需要 `REQUEST_INSTALL_PACKAGES`。设备没有 `DownloadManager` 时，下载地址会退回为打开链接。
+
+### 各广告位展示
+
+- **开屏**：左上角「广告」，右上角「跳过 N 秒」。N 默认 5 秒。这两个控件会按状态栏高度下移，避免和系统状态栏重叠。倒计时结束自动关闭。点击画面或摇一摇触发点击跳转。
+- **Banner**：左上角「广告」。右上角可关闭。点击素材或按钮触发点击跳转。
+- **插屏**：圆角卡片浮在透明蒙层上，没有系统对话框黑框。卡片内左上角「广告」，右上角关闭。展示 15 秒后自动关闭；点蒙层也会关闭。
+- **激励视频**：全屏播放，视频循环。左上角为「广告」加「观看 20 秒获得奖励」，剩余秒数递减。满 20 秒后文案变为「已获得奖励」，并回调 `onReward()`。右上角是关闭按钮：
+  - 已获得奖励：直接关闭。
+  - 尚未获得奖励：暂停播放和倒计时，弹出确认框。「继续观看」从暂停处继续；「放弃奖励」关闭且不回调 `onReward()`。点确认框外的遮罩或按返回键，等同于继续观看。
 
 ---
 
@@ -463,19 +493,21 @@ Body (JSON 明文 / 加密后的明文):
 ## 项目结构
 
 ```
-sdk/android/
-├── app/                    # Demo App（含 Common.kt 中的 BASE_URL + ad_unit_id 常量）
-└── library/                # SDK AAR
-    ├── build.gradle.kts
-    └── src/main/java/com/ignitefusion/ad/
-        ├── IgniteFusionAd.kt              # 入口：init + load*/show* + reportThirdPartyEvent
-        ├── IgniteFusionApiClient.kt       # OkHttp+Gson：广告位拉取 / 埋点（公开）
-        ├── IgniteFusionAdListener.kt
-        ├── IgniteFusionThirdPartyEvent.kt
-        ├── model/                         # AdSpaceResult / Addata / IgniteFusionAdData
-        ├── network/                       # IgniteFusionCipher（RSA+AES）
-        ├── ui/                            # Splash/Banner/Insert/Reward + RewardVideoActivity
-        └── util/                          # IgniteFusionLog（debug 开关）
+.
+├── app/                         # Demo App
+├── library/                     # SDK AAR
+│   └── src/main/java/com/ignitefusion/ad/
+│       ├── IgniteFusionAd.kt              # 入口：init + load*/show* + reportThirdPartyEvent
+│       ├── IgniteFusionApiClient.kt       # OkHttp+Gson：广告位拉取 / 埋点（公开）
+│       ├── IgniteFusionAdListener.kt
+│       ├── IgniteFusionThirdPartyEvent.kt
+│       ├── model/                         # AdSpaceResult / Addata / IgniteFusionAdData
+│       ├── network/                       # IgniteFusionCipher（RSA+AES）
+│       ├── ui/                            # Splash/Banner/Insert/Reward + RewardVideoActivity
+│       └── util/                          # IgniteFusionLog（debug 开关）
+├── jitpack.yml                  # JitPack：JDK 17 + :library:publishToMavenLocal
+├── build.gradle.kts
+└── settings.gradle.kts
 ```
 
 ---
@@ -584,13 +616,14 @@ IgniteFusionAd.loadIFSplashAd(
 
 1. **后端地址可从设备访问**：生产 `PROD_BASE_URL` 域名证书要在 Android 信任链中；本地联调请在 library 修改 `PROD_BASE_URL`（模拟器用 `http://10.0.2.2:<port>`，真机需内网穿透/局域网 IP）后重新编译 AAR。
 2. **媒体路径拼接**：所有 `/uploads/*` 路径，SDK 会自动拼 baseUrl；请不要在数据库里写入带域名的完整 URL（后端工程规范）。
-3. **激励视频必填 `video`**：若抽到的广告 `video.url` 为空，SDK 会回调 `onAdLoadFailure`（旧行为保持不变）。
-4. **所有 API 调用建议在主线程进行**；内部 OkHttp 请求为异步，主线程回调。
-5. **退出时释放资源**：应用退出时调用 `IgniteFusionAd.destroy()`。
-6. **三方 `LOAD` 事件不要重复上报**：SDK 在 `dispatchThirdPartyFlow` 里已自动触发一次 `reportThirdPartyEvent(adUnitId, ThirdPartyEventType.LOAD)`，接入方如再手动上报会导致「当日 loads 虚高 → allowLoad 提前变为 false」。仅需手动上报 **SHOW**（三方广告渲染回调，如 Pangle 的 `onAdShow`）和 **CLICK**（`onAdClicked`）。
-7. **SDK 已提前做 allowLoad 判定**：`dispatchThirdPartyFlow` 在上报 load 事件的成功回调里，如果 `allowLoad=false` 会直接走 `listener.onAdLoadFailure("…已达上限…")`，**不会调用** `loadThirdPartyAd`；只有 allowLoad=true 或上报失败兜底放行时才回调，因此 `loadThirdPartyAd` 内部**无需**再写 `if (!info.allowLoad) return`。
-8. **日上限以 UTC 自然日重置**：后端统计维度是 UTC day。若业务按北京时间 0 点清 0，可在后台把 limit 设得略大一点；如需切换时区，请在后端部署时调整 `TZ` 环境变量（不影响 SDK 逻辑）。
-9. **`limit = 0` 代表不限**：如果后台把 `third_party_show_limit` 或 `third_party_click_limit` 设成 0，SDK 在 `allowLoad` 会一直返回 `true`，`remaining` 字段无意义可忽略。
+3. **激励视频必填 `video`**：若抽到的广告 `video.url` 为空，SDK 会回调 `onAdLoadFailure`。观看满 20 秒才回调 `onReward()`；提前关闭并选择「放弃奖励」不会发奖。
+4. **自有广告点击看 `url` 和 `isDownload`**：下载类走下载安装，普通链接用浏览器打开。已安装目标应用时，点击本身不会改去启动该应用；只有下载安装完成、且素材带了 `applicationId` 时，才会在安装成功后启动。
+5. **所有 API 调用建议在主线程进行**；内部 OkHttp 请求为异步，主线程回调。
+6. **退出时释放资源**：应用退出时调用 `IgniteFusionAd.destroy()`。
+7. **三方 `LOAD` 事件不要重复上报**：SDK 在 `dispatchThirdPartyFlow` 里已自动触发一次 `reportThirdPartyEvent(adUnitId, ThirdPartyEventType.LOAD)`，接入方如再手动上报会导致「当日 loads 虚高 → allowLoad 提前变为 false」。仅需手动上报 **SHOW**（三方广告渲染回调，如 Pangle 的 `onAdShow`）和 **CLICK**（`onAdClicked`）。
+8. **SDK 已提前做 allowLoad 判定**：`dispatchThirdPartyFlow` 在上报 load 事件的成功回调里，如果 `allowLoad=false` 会直接走 `listener.onAdLoadFailure("…已达上限…")`，**不会调用** `loadThirdPartyAd`；只有 allowLoad=true 或上报失败兜底放行时才回调，因此 `loadThirdPartyAd` 内部**无需**再写 `if (!info.allowLoad) return`。
+9. **日上限以 UTC 自然日重置**：后端统计维度是 UTC day。若业务按北京时间 0 点清 0，可在后台把 limit 设得略大一点；如需切换时区，请在后端部署时调整 `TZ` 环境变量（不影响 SDK 逻辑）。
+10. **`limit = 0` 代表不限**：如果后台把 `third_party_show_limit` 或 `third_party_click_limit` 设成 0，SDK 在 `allowLoad` 会一直返回 `true`，`remaining` 字段无意义可忽略。
 
 ---
 
